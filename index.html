@@ -6,6 +6,7 @@
     <title>Fixed Income Risk Engine | Benjamin Jeong</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <style>
         body { background-color: #050a14; font-family: 'Inter', sans-serif; color: #94a3b8; }
@@ -16,98 +17,164 @@
 </head>
 <body class="antialiased">
     <div class="max-w-6xl mx-auto px-6 py-12">
-        <nav class="mb-12">
+        <nav class="flex justify-between items-center mb-12">
             <a href="https://wbj212.github.io/" class="mono text-[10px] text-cyan-500 hover:text-white transition-colors tracking-widest uppercase">
                 [ BACK_TO_PORTFOLIO ]
             </a>
+            <div class="mono text-[10px] text-slate-500">ENGINE_VERSION: 1.0.4 // CALIBRATED</div>
         </nav>
 
-        <header class="mb-16">
-            <h1 class="text-white text-5xl font-black tracking-tighter mb-4">
-                Fixed Income <span class="text-cyan-500 cyan-glow">Risk Engine</span>
-            </h1>
-            <p class="text-lg max-w-2xl text-slate-400">
-                A stochastic simulation framework for decomposing interest rate sensitivity and quantifying portfolio Value-at-Risk (VaR).
-            </p>
-        </header>
-
-        <section class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
-            <div class="glass p-6 rounded-2xl">
-                <p class="mono text-[10px] text-slate-500 uppercase mb-2">99% VaR (1Y)</p>
-                <p class="text-2xl font-bold text-white">-$1.15M</p>
+        <header class="mb-16 grid grid-cols-1 md:grid-cols-3 gap-12 items-end">
+            <div class="md:col-span-2">
+                <h1 class="text-white text-6xl font-black tracking-tighter mb-4">
+                    Fixed Income <span class="text-cyan-500 cyan-glow">Risk Engine</span>
+                </h1>
+                <p class="text-lg max-w-2xl text-slate-400">
+                    Stochastic simulation framework for decomposing interest rate sensitivity. 
+                    Utilizing a <span class="text-white">Vasicek SDE</span> to model mean-reverting 
+                    short rates and quantify portfolio Value-at-Risk (VaR).
+                </p>
             </div>
             <div class="glass p-6 rounded-2xl border-cyan-500/20">
-                <p class="mono text-[10px] text-cyan-500 uppercase mb-2">Duration</p>
-                <p class="text-2xl font-bold text-white italic">5.82</p>
+                <p class="mono text-[10px] text-cyan-500 uppercase mb-2">99% VaR Estimate</p>
+                <p id="var-display" class="text-3xl font-bold text-white tracking-tight">Calculating...</p>
+                <p class="mono text-[8px] text-slate-500 mt-2">HORIZON: 1-YEAR // N=10,000</p>
             </div>
-            <div class="glass p-6 rounded-2xl">
-                <p class="mono text-[10px] text-slate-500 uppercase mb-2">Convexity</p>
-                <p class="text-2xl font-bold text-white">28.4</p>
-            </div>
-            <div class="glass p-6 rounded-2xl">
-                <p class="mono text-[10px] text-slate-500 uppercase mb-2">Sim Paths</p>
-                <p class="text-2xl font-bold text-white">10,000</p>
-            </div>
-        </section>
+        </header>
 
-        <section class="glass p-8 rounded-3xl mb-12">
-            <h3 class="mono text-xs font-bold text-cyan-500 mb-8 tracking-widest uppercase">Monte_Carlo_Yield_Simulation</h3>
-            <div class="h-[400px]">
-                <canvas id="riskChart"></canvas>
-            </div>
-        </section>
+        <main class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-12">
+            <section class="lg:col-span-3 glass p-8 rounded-3xl min-h-[500px] flex flex-col">
+                <div class="flex justify-between items-center mb-8">
+                    <h3 class="mono text-xs font-bold text-white tracking-widest uppercase">Monte_Carlo_Paths (N=100_Sample)</h3>
+                    <div id="status-tag" class="px-2 py-1 bg-cyan-500/10 text-cyan-500 text-[10px] rounded mono animate-pulse">LOADING_DATA...</div>
+                </div>
+                <div class="flex-1 relative">
+                    <canvas id="riskChart"></canvas>
+                </div>
+            </section>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div>
-                <h3 class="text-xl font-bold text-white mb-4">Stochastic Core</h3>
-                <p class="text-sm leading-relaxed mb-6">
-                    The engine utilizes a discretized Vasicek SDE to model short-rate mean reversion. This allows for realistic interest rate shocks beyond standard linear assumptions.
-                </p>
-                <div class="bg-black/50 p-6 rounded-xl border border-white/5 mono text-xs text-cyan-400">
-                    dr = a(b - r)dt + sigma * dW
+            <aside class="space-y-6">
+                <div class="glass p-6 rounded-2xl">
+                    <h4 class="mono text-[10px] text-white uppercase mb-4 border-b border-white/5 pb-2">Model Calibration</h4>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase">Mean Reversion (a)</p>
+                            <p class="text-white font-bold">0.15</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase">Long-Term Mean (b)</p>
+                            <p class="text-white font-bold">5.0%</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-500 uppercase">Inst. Volatility (σ)</p>
+                            <p class="text-white font-bold">1.2%</p>
+                        </div>
+                    </div>
                 </div>
+
+                <div class="glass p-6 rounded-2xl">
+                    <h4 class="mono text-[10px] text-white uppercase mb-4 border-b border-white/5 pb-2">Portfolio Sensitivity</h4>
+                    <div class="space-y-4">
+                        <div class="flex justify-between">
+                            <span class="text-[10px] text-slate-500">MOD_DURATION</span>
+                            <span class="text-white font-bold">5.82</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-[10px] text-slate-500">CONVEXITY</span>
+                            <span class="text-white font-bold">28.4</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <footer class="mt-20 pt-10 border-t border-slate-900/50 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="mono text-[10px] text-slate-600 uppercase tracking-widest">
+                © 2026 BENJAMIN_JEONG // UMN APPLIED MATH
             </div>
-            <div class="space-y-4">
-                <h3 class="text-xl font-bold text-white mb-4">Key Functions</h3>
-                <div class="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/5">
-                    <span class="mono text-cyan-500 text-xs">01</span>
-                    <span class="text-sm">Automated bootstrapping of Zero-Coupon Curves.</span>
-                </div>
-                <div class="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/5">
-                    <span class="mono text-cyan-500 text-xs">02</span>
-                    <span class="text-sm">Calculates Modified Duration and Convexity for 1,000+ assets.</span>
-                </div>
-                <div class="flex items-center gap-3 p-3 bg-white/5 rounded-lg border border-white/5">
-                    <span class="mono text-cyan-500 text-xs">03</span>
-                    <span class="text-sm">Real-time tail risk analysis via Monte Carlo simulations.</span>
-                </div>
+            <div class="mono text-[10px] text-slate-600 uppercase tracking-widest">
+                ENGINE_LOGIC: DISCRETIZED_VASICEK_SDE
             </div>
-        </div>
+        </footer>
     </div>
 
-    <script is:inline>
-        const ctx = document.getElementById('riskChart').getContext('2d');
-        const generatePath = (start, drift) => Array.from({length: 20}, () => start += (Math.random() - drift) * 0.3);
+    <script>
+        // URL to your RAW CSV on GitHub
+        const csvUrl = 'https://raw.githubusercontent.com/wbj212/fixed-income-engine/main/data/simulation_outputs_actual.csv';
 
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: 20}, (_, i) => `T+${i}`),
-                datasets: [
-                    { label: 'Shock Path', data: generatePath(4.5, 0.4), borderColor: '#06b6d4', borderWidth: 2, tension: 0.4, pointRadius: 0 },
-                    { label: 'Mean Path', data: generatePath(4.5, 0.5), borderColor: '#ffffff20', borderWidth: 1, tension: 0.4, pointRadius: 0 },
-                    { label: 'Tail Event', data: generatePath(4.5, 0.6), borderColor: '#ef444460', borderWidth: 1, borderDash: [5,5], tension: 0.4, pointRadius: 0 }
-                ]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { color: '#ffffff05' }, ticks: { color: '#64748b', font: { family: 'monospace', size: 10 } } },
-                    y: { grid: { color: '#ffffff05' }, ticks: { color: '#64748b', font: { family: 'monospace', size: 10 } } }
+        async function initDashboard() {
+            Papa.parse(csvUrl, {
+                download: true,
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    processData(results.data);
+                },
+                error: function(err) {
+                    document.getElementById('status-tag').innerText = 'ERROR_FETCHING_DATA';
                 }
-            }
-        });
+            });
+        }
+
+        function processData(data) {
+            // Group data by Path_ID
+            const paths = {};
+            data.forEach(row => {
+                if (!paths[row.Path_ID]) paths[row.Path_ID] = [];
+                paths[row.Path_ID].push(row.Simulated_Rate * 100); // Convert to %
+            });
+
+            renderChart(paths);
+            updateVaR(paths);
+            document.getElementById('status-tag').innerText = 'LIVE_SYSTEM_SYNCED';
+            document.getElementById('status-tag').classList.remove('animate-pulse');
+        }
+
+        function renderChart(paths) {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            const datasets = Object.keys(paths).slice(0, 15).map((id, index) => ({
+                label: `Path ${id}`,
+                data: paths[id],
+                borderColor: index === 0 ? '#06b6d4' : 'rgba(255, 255, 255, 0.05)',
+                borderWidth: index === 0 ? 3 : 1,
+                tension: 0.4,
+                pointRadius: 0
+            }));
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 252}, (_, i) => `T+${i}`),
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#ffffff05' }, ticks: { color: '#64748b', font: { family: 'JetBrains Mono', size: 10 } } },
+                        y: { 
+                            grid: { color: '#ffffff05' }, 
+                            ticks: { 
+                                color: '#64748b', 
+                                font: { family: 'JetBrains Mono', size: 10 },
+                                callback: (v) => v.toFixed(2) + '%'
+                            } 
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateVaR(paths) {
+            // Simplified VaR demonstration
+            const endRates = Object.values(paths).map(p => p[p.length - 1]);
+            endRates.sort((a, b) => a - b);
+            const varValue = endRates[Math.floor(endRates.length * 0.01)];
+            document.getElementById('var-display').innerText = `${varValue.toFixed(2)}%`;
+        }
+
+        initDashboard();
     </script>
 </body>
 </html>
